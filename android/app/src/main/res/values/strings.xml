@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Temporary product name; change here and in gradle.properties (janggi.applicationId) before release. -->
-    <string name="app_name">Janggi AI</string>
+    <string name="app_name">장기 교육</string>
 </resources>
