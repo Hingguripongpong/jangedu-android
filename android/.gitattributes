@@ -1,0 +1,10 @@
+# Line endings that must survive a Windows checkout with core.autocrlf=true
+gradlew         text eol=lf
+*.sh            text eol=lf
+*.bat           text eol=crlf
+*.jar           binary
+*.properties    text
+*.kts           text
+*.kt            text
+*.cpp           text
+*.h             text

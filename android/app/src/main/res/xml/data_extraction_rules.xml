@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="records" />
+        <exclude domain="sharedpref" path="janggi_settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="records" />
+    </device-transfer>
+</data-extraction-rules>

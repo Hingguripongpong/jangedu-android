@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Game records stay on the device (allowBackup=false); nothing is backed up. -->
+<full-backup-content>
+    <exclude domain="file" path="records" />
+    <exclude domain="sharedpref" path="janggi_settings.xml" />
+</full-backup-content>

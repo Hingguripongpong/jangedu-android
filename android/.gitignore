@@ -1,0 +1,22 @@
+# Gradle / IDE
+.gradle/
+build/
+*/build/
+.idea/
+*.iml
+local.properties
+.cxx/
+*/.cxx/
+captures/
+.externalNativeBuild/
+
+# Signing secrets - never commit
+*.jks
+*.keystore
+keystore.properties
+
+# Desktop test artefacts
+tools/desktop-jni-test/build/
+
+# Kotlin Gradle plugin persistent data
+.kotlin/

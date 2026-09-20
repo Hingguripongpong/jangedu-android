@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>장기 분석 — Janggi AI v0.1</title>
+<style>
+  :root {
+    --ground: #e6eae6;
+    --panel: #fbfbf8;
+    --panel-2: #f1f2ee;
+    --ink: #1d2521;
+    --muted: #66716c;
+    --rule: #cfd5d0;
+    --board: #d9b978;
+    --board-edge: #b4924e;
+    --board-line: #4b3a20;
+    --cho: #276a45;
+    --han: #b13a2a;
+    --piece: #f7ecd4;
+    --best: #1f5ea8;
+    --worse: #d2782a;
+    --gold: #c9922e;
+    --danger: #b13a2a;
+    --font-ui: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+               "Malgun Gothic", "Noto Sans KR", "Segoe UI", sans-serif;
+    --font-piece: "Noto Serif KR", "Nanum Myeongjo", "Apple Myungjo", Batang, "Yu Mincho", serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font-ui); }
+  body { font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: 3px solid var(--best); outline-offset: 2px;
+  }
+
+  header.top {
+    display: flex; align-items: baseline; gap: 18px; padding: 14px 22px 8px;
+  }
+  header.top h1 { font-size: 20px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  header.top h1 small { font-weight: 450; color: var(--muted); font-size: 13px; margin-left: 8px; }
+  #turn { font-size: 15px; font-weight: 550; }
+  #turn .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  #alert { margin-left: auto; font-weight: 600; color: var(--danger); min-height: 1.4em; }
+  #alert.draw { color: var(--muted); }
+
+  main { display: grid; grid-template-columns: minmax(420px, 640px) minmax(380px, 1fr); gap: 22px; padding: 4px 22px 24px; align-items: start; }
+  @media (max-width: 940px) { main { grid-template-columns: 1fr; } }
+
+  /* ------------------------------------------------------------- board */
+  .board-wrap { position: relative; }
+  svg#board { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; }
+  .piece { cursor: pointer; }
+  .piece.inactive { cursor: default; }
+  .piece text { font-family: var(--font-piece); font-weight: 700; pointer-events: none; }
+  .target { cursor: pointer; }
+  .wr-label { font-weight: 650; font-variant-numeric: tabular-nums; pointer-events: none; }
+
+  .board-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  .board-controls .grow { flex: 1 1 120px; }
+  .btn {
+    border: 1px solid var(--rule); background: var(--panel); border-radius: 7px; padding: 7px 12px;
+    font-weight: 550;
+  }
+  .btn:hover { background: var(--panel-2); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .btn.primary:hover { background: #2f3b35; }
+  select.sel { border: 1px solid var(--rule); background: var(--panel); border-radius: 7px; padding: 6px 8px; }
+  .fen-row { display: flex; gap: 8px; margin-top: 10px; }
+  .fen-row input { flex: 1; border: 1px solid var(--rule); border-radius: 7px; padding: 7px 10px; background: var(--panel);
+                   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; min-width: 0; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+
+  /* ------------------------------------------------------------- panel */
+  .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+  .panel-head { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  .switch input { appearance: none; width: 40px; height: 22px; border-radius: 11px; background: #c4cbc6; position: relative; margin: 0; cursor: pointer; transition: background .15s; }
+  .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .switch input:checked { background: var(--cho); }
+  .switch input:checked::after { left: 21px; }
+  .field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .field select { color: var(--ink); }
+  #stopBtn { display: none; }
+  #stopBtn.show { display: inline-block; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 0; border-bottom: 1px solid var(--rule); background: var(--panel-2); }
+  .stat { padding: 8px 14px; }
+  .stat b { display: block; font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .stat.running b::after { content: ""; display: inline-block; width: 8px; height: 8px; margin-left: 8px; border-radius: 50%; background: var(--cho); vertical-align: 2px; animation: pulse 1s infinite alternate; }
+  @keyframes pulse { from { opacity: .25; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .stat.running b::after { animation: none; } .switch input, .switch input::after { transition: none; } }
+
+  table.moves { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.moves th { text-align: left; font-weight: 550; color: var(--muted); font-size: 12px; padding: 8px 10px 6px; border-bottom: 1px solid var(--rule); }
+  table.moves th.num, table.moves td.num { text-align: right; }
+  table.moves td { padding: 6px 10px; border-bottom: 1px solid #e7eae6; vertical-align: middle; white-space: nowrap; }
+  table.moves tr.row { cursor: pointer; }
+  table.moves tr.row:hover td { background: var(--panel-2); }
+  table.moves tr.row.selected td { background: #e6eef8; }
+  table.moves tr.row.best td.move { font-weight: 650; }
+  td.move .hanja { font-family: var(--font-piece); font-weight: 700; margin-right: 4px; }
+  td.move .cho { color: var(--cho); } td.move .han { color: var(--han); }
+  td.move .cap { color: var(--han); font-weight: 600; }
+  td.move .chk { color: var(--gold); font-weight: 700; margin-left: 4px; }
+  .wr { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+  .wr .bar { flex: 1; height: 8px; background: #e2e6e2; border-radius: 4px; overflow: hidden; }
+  .wr .bar i { display: block; height: 100%; background: var(--best); }
+  .wr .pct { width: 52px; text-align: right; font-weight: 600; }
+  .pv-cell { color: var(--muted); font-size: 12px; white-space: normal; }
+  .play-btn { border: 1px solid var(--rule); background: #fff; border-radius: 6px; padding: 2px 8px; font-size: 12px; visibility: hidden; }
+  tr.row:hover .play-btn, tr.row.selected .play-btn { visibility: visible; }
+  .empty { padding: 26px 14px; color: var(--muted); text-align: center; }
+
+  .section { padding: 12px 14px; border-top: 1px solid var(--rule); }
+  .section h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; }
+  .pv-line { font-size: 14px; line-height: 1.7; }
+  .pv-line .ply { color: var(--muted); font-size: 12px; margin-right: 2px; }
+  .pv-line .hanja { font-family: var(--font-piece); font-weight: 700; }
+  .pv-line .cho { color: var(--cho); } .pv-line .han { color: var(--han); }
+  dl.eval { display: grid; grid-template-columns: max-content 1fr; gap: 3px 16px; margin: 0; font-variant-numeric: tabular-nums; }
+  dl.eval dt { color: var(--muted); } dl.eval dd { margin: 0; text-align: right; }
+  dl.eval dd.total, dl.eval dt.total { font-weight: 650; border-top: 1px solid var(--rule); padding-top: 4px; margin-top: 2px; }
+  .history { display: flex; flex-wrap: wrap; gap: 4px 6px; max-height: 120px; overflow: auto; }
+  .history button { border: 0; background: var(--panel-2); border-radius: 5px; padding: 2px 7px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .history button.cur { background: var(--ink); color: #fff; }
+  .history button .hanja { font-family: var(--font-piece); font-weight: 700; }
+  .brief .verdict { font-weight: 650; margin-bottom: 6px; }
+  .brief .verdict.good { color: var(--cho); } .brief .verdict.bad { color: var(--han); }
+  ul.reasons { margin: 4px 0 0; padding-left: 0; list-style: none; }
+  ul.reasons li { padding-left: 18px; position: relative; line-height: 1.5; }
+  ul.reasons li::before { position: absolute; left: 2px; font-weight: 700; }
+  ul.reasons li.plus::before { content: "+"; color: var(--cho); }
+  ul.reasons li.minus::before { content: "−"; color: var(--han); }
+  ul.reasons li.plan { color: var(--muted); font-size: 12.5px; }
+  ul.reasons li.plan::before { content: "→"; color: var(--muted); }
+  .explain-item { padding: 8px 0; border-bottom: 1px solid #e7eae6; cursor: pointer; }
+  .explain-item:last-child { border-bottom: 0; }
+  .explain-item:hover { background: var(--panel-2); }
+  .explain-item .head { font-weight: 600; }
+  .explain-item .head .rank { color: var(--muted); font-weight: 500; margin-right: 6px; }
+  .explain-item .hanja, .brief .hanja { font-family: var(--font-piece); font-weight: 700; }
+  footer.note { padding: 10px 14px 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--rule); }
+  #wsstate { font-size: 12px; color: var(--muted); }
+  #wsstate.bad { color: var(--danger); }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>장기 분석 <small>Janggi AI v0.1 — 모든 합법수의 예상 승률 (Estimated Win Rate)</small></h1>
+  <div id="turn"></div>
+  <div id="alert" aria-live="polite"></div>
+</header>
+
+<main>
+  <section class="board-wrap" aria-label="장기판">
+    <svg id="board" viewBox="0 0 612 676" role="img" aria-label="장기판"></svg>
+    <div class="board-controls">
+      <label class="field">초 <select id="choSetup" class="sel"></select></label>
+      <label class="field">한 <select id="hanSetup" class="sel"></select></label>
+      <button id="newBtn" class="btn primary">새 게임</button>
+      <button id="undoBtn" class="btn">무르기</button>
+      <button id="passBtn" class="btn">한수쉼</button>
+      <button id="aiBtn" class="btn">AI 착수</button>
+      <label class="field">AI 자동 응수
+        <select id="autoSel" class="sel">
+          <option value="none" selected>끄기</option>
+          <option value="han">한</option>
+          <option value="cho">초</option>
+        </select>
+      </label>
+      <button id="flipBtn" class="btn">판 뒤집기</button>
+    </div>
+    <div class="board-controls">
+      <label class="field">빅장
+        <select id="bikjangSel" class="sel">
+          <option value="off" selected>없음 — 궁이 마주봐도 계속 (현대 규칙)</option>
+          <option value="forced">전통 — 받은 쪽은 풀거나 한수쉼으로 받아들임(점수 판정)</option>
+          <option value="draw">풀지 않으면 무승부 (내장 엔진만)</option>
+          <option value="points">풀지 않으면 점수 판정 (내장 엔진만)</option>
+        </select>
+      </label>
+      <label class="field">동형 반복
+        <select id="repSel" class="sel">
+          <option value="draw">3회 무승부</option>
+          <option value="off">제한 없음</option>
+        </select>
+      </label>
+    </div>
+    <div class="fen-row">
+      <input id="fenInput" spellcheck="false" aria-label="FEN">
+      <button id="fenBtn" class="btn">FEN 불러오기</button>
+    </div>
+    <p class="hint" id="engineHint"></p>
+    <p class="hint">기물을 클릭하면 이동 가능한 칸에 그 수의 예상 승률이 표시됩니다. 표에서 수를 클릭하면 예상 진행(PV)을 보여주고, ‘두기’로 착수합니다. 승률은 기본적으로 <b>둘 차례인 쪽</b> 기준이며 ‘승률 기준’에서 고정할 수 있습니다. ‘AI 자동 응수’를 켜면 그 색의 차례에 분석이 끝나는 즉시 최선수를 두므로, 한 수의 대기 시간은 ‘시간’ 설정 한 번입니다.</p>
+  </section>
+
+  <aside class="panel" aria-label="분석">
+    <div class="panel-head">
+      <label class="switch">분석 <input type="checkbox" id="analysisToggle" checked></label>
+      <label class="field">엔진 <select id="engineSel" class="sel"><option value="python">내장 (Python)</option></select></label>
+      <label class="field">시간
+        <select id="timeSel" class="sel">
+          <option value="100">100 ms</option>
+          <option value="500">500 ms</option>
+          <option value="1000" selected>1 s</option>
+          <option value="5000">5 s</option>
+          <option value="10000">10 s</option>
+          <option value="0">무제한</option>
+        </select>
+      </label>
+      <label class="field">표시
+        <select id="topSel" class="sel">
+          <option value="3">상위 3</option>
+          <option value="5">상위 5</option>
+          <option value="10">상위 10</option>
+          <option value="0" selected>모든 수</option>
+        </select>
+      </label>
+      <label class="field">승률 기준
+        <select id="perspSel" class="sel">
+          <option value="turn" selected>둘 차례</option>
+          <option value="cho">초</option>
+          <option value="han">한</option>
+        </select>
+      </label>
+      <button id="stopBtn" class="btn">중지</button>
+      <span id="wsstate">연결 중…</span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div id="movesWrap"><div class="empty">분석 대기 중</div></div>
+    <div class="section brief" id="briefSection" hidden>
+      <h2 id="briefTitle">내 수 브리핑</h2>
+      <div id="briefBody"></div>
+    </div>
+    <div class="section" id="explainSection" hidden>
+      <h2 id="explainTitle">왜 좋은 수인가 — 상위 5</h2>
+      <div id="explainBody"></div>
+    </div>
+    <div class="section" id="pvSection" hidden>
+      <h2 id="pvTitle">예상 진행</h2>
+      <div class="pv-line" id="pvLine"></div>
+    </div>
+    <div class="section">
+      <h2>현재 위치 평가 (둘 차례 기준, 단위 점)</h2>
+      <dl class="eval" id="evalList"></dl>
+    </div>
+    <div class="section">
+      <h2>기보</h2>
+      <div class="history" id="history"></div>
+    </div>
+    <footer class="note" id="calibNote"></footer>
+  </aside>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  // ------------------------------------------------------------------ constants
+  const CELL = 64, MARGIN = 50, ROWS = 10, COLS = 9;
+  const W = 8 * CELL + 2 * MARGIN, H = 9 * CELL + 2 * MARGIN;   // 612 x 676
+  const CHO = 0, HAN = 1;
+  const SIDE_COLOR = { cho: "var(--cho)", han: "var(--han)" };
+  const PIECE_RADIUS = { 1: 27, 2: 21, 3: 24, 4: 24, 5: 24, 6: 24, 7: 21 };
+  const NUMS = new Intl.NumberFormat("ko-KR");
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  // ------------------------------------------------------------------ state
+  const S = {
+    startFen: null,
+    moves: [],
+    state: null,          // /api/state response
+    analysis: null,       // latest analysis message
+    reqId: 0,
+    running: false,
+    selectedSq: null,     // selected piece square (int)
+    selectedMove: null,   // move string highlighted from the table
+    flipped: false,
+    busy: false,
+    heartbeat: null,      // latest heartbeat for the current job
+    lastMsgAt: 0,
+  };
+  let ws = null, wsReady = false, wsRetry = null;
+  const WATCHDOG_MS = 12000;   // server heartbeats every 2 s while a job runs
+
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs = {}, ...children) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") n.className = v;
+      else if (k === "html") n.innerHTML = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+      else if (v !== null && v !== undefined) n.setAttribute(k, v);
+    }
+    for (const c of children) if (c !== null && c !== undefined) n.append(c);
+    return n;
+  };
+  const svgEl = (tag, attrs = {}) => {
+    const n = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+
+  // ------------------------------------------------------------------ geometry
+  const rowOf = (sq) => Math.floor(sq / COLS), colOf = (sq) => sq % COLS;
+  function xy(sq) {
+    let r = rowOf(sq), c = colOf(sq);
+    if (S.flipped) { r = ROWS - 1 - r; c = COLS - 1 - c; }
+    return [MARGIN + c * CELL, MARGIN + r * CELL];
+  }
+  const sqName = (sq) => `${(rowOf(sq) + 1) % 10}${colOf(sq) + 1}`;
+
+  // ------------------------------------------------------------------ api
+  async function api(path, body) {
+    const opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+    const r = await fetch(path, opts);
+    if (!r.ok) {
+      let detail = r.statusText;
+      try { detail = (await r.json()).detail || detail; } catch (_) { /* ignore */ }
+      throw new Error(detail);
+    }
+    return r.json();
+  }
+
+  const rulesPayload = () => ({ bikjang: $("bikjangSel").value, repetition: $("repSel").value });
+  const engineId = () => $("engineSel").value;
+
+  async function newGame() {
+    const q = new URLSearchParams({ cho: $("choSetup").value, han: $("hanSetup").value, ...rulesPayload() });
+    const d = await api(`/api/new_game?${q}`);
+    S.startFen = d.start_fen;
+    S.moves = [];
+    applyState(d);
+  }
+
+  async function loadFen(fen) {
+    try {
+      const d = await api("/api/state", { fen, rules: rulesPayload() });
+      S.startFen = d.fen;
+      S.moves = [];
+      applyState(d);
+    } catch (e) {
+      setAlert(`FEN을 읽을 수 없습니다: ${e.message}`, "draw");
+    }
+  }
+
+  async function refreshState() {
+    const d = await api("/api/state", { start_fen: S.startFen, moves: S.moves, rules: rulesPayload() });
+    applyState(d);
+  }
+
+  function applyState(d) {
+    if (!S.moves.length) { $("briefSection").hidden = true; }
+    S.state = d;
+    if (d.rules && $("bikjangSel").value !== d.rules.bikjang) $("bikjangSel").value = d.rules.bikjang;
+    S.selectedSq = null;
+    S.selectedMove = null;
+    S.analysis = null;
+    $("fenInput").value = d.fen;
+    renderAll();
+    if ($("analysisToggle").checked && !d.status.is_over) requestAnalysis();
+    else {
+      stopAnalysis(); renderStats();
+      if (autoSide() !== "none" && d.side === autoSide() && !d.status.is_over) setTimeout(() => aiMove(true), 50);
+    }
+  }
+
+  async function playMove(moveStr, opts = {}) {
+    if (S.busy) return;
+    const prevAnalysis = S.analysis && S.state && S.analysis.fen === S.state.fen ? S.analysis : null;
+    S.moves.push(moveStr);
+    try { await refreshState(); }
+    catch (e) { S.moves.pop(); setAlert(e.message, "draw"); return; }
+    if (opts.brief) requestBriefing(prevAnalysis);
+  }
+
+  // ---------------------------------------------------------------- briefing of the move just played
+  let briefSeq = 0;
+  async function requestBriefing(prevAnalysis) {
+    const seq = ++briefSeq;
+    const sec = $("briefSection");
+    sec.hidden = false;
+    $("briefBody").innerHTML = "";
+    $("briefBody").append(el("div", { class: "empty" }, "내 수를 평가하는 중…"));
+    try {
+      const body = { start_fen: S.startFen, moves: S.moves, rules: rulesPayload(), engine: engineId(),
+                     time_limit_ms: Math.min(Number($("timeSel").value) || 800, 1500) };
+      if (prevAnalysis) body.prev_analysis = { fen: prevAnalysis.fen, moves: prevAnalysis.moves.map(m => ({ move: m.move, notation: m.notation, rank: m.rank, score: m.score, score_cp: m.score_cp, mate: m.mate, decisive: m.decisive, estimated_winrate: m.estimated_winrate, pv: m.pv, pv_pretty: m.pv_pretty })), depth: prevAnalysis.depth };
+      const b = await api("/api/briefing", body);
+      if (seq !== briefSeq) return;
+      renderBriefing(b);
+    } catch (e) {
+      if (seq !== briefSeq) return;
+      $("briefBody").innerHTML = "";
+      $("briefBody").append(el("div", { class: "empty" }, `브리핑 실패: ${e.message}`));
+    }
+  }
+
+  function withHanja(text) {
+    // wrap CJK piece characters so they render in the piece typeface
+    const frag = document.createDocumentFragment();
+    let buf = "";
+    for (const ch of text) {
+      if (/[\u4e00-\u9fff]/.test(ch)) { if (buf) { frag.append(buf); buf = ""; } frag.append(el("span", { class: "hanja" }, ch)); }
+      else buf += ch;
+    }
+    if (buf) frag.append(buf);
+    return frag;
+  }
+
+  function reasonsList(good, risk, plan) {
+    const ul = el("ul", { class: "reasons" });
+    (good || []).forEach(t => ul.append(el("li", { class: "plus" }, withHanja(t))));
+    (risk || []).forEach(t => ul.append(el("li", { class: "minus" }, withHanja(t))));
+    if (plan) ul.append(el("li", { class: "plan" }, withHanja(plan)));
+    return ul;
+  }
+
+  function renderBriefing(b) {
+    const body = $("briefBody");
+    body.innerHTML = "";
+    $("briefTitle").textContent = `내 수 브리핑 — ${b.side} ${b.notation}`;
+    const cls = b.rank === 1 ? "good" : (b.best && b.best.gap_pct != null && b.best.gap_pct >= 4 ? "bad" : "");
+    const wr = b.winrate == null ? "" : ` · 승률 ${(b.winrate * 100).toFixed(1)}%`;
+    body.append(el("div", { class: `verdict ${cls}` }, withHanja(`${b.verdict}${wr}`)));
+    body.append(reasonsList(b.good, b.risk, b.expected_reply ? `상대의 예상 응수: ${b.expected_reply}` : ""));
+    if (b.better && b.better.length) {
+      const ul = el("ul", { class: "reasons" });
+      b.better.forEach(t => ul.append(el("li", { class: "plan" }, withHanja(t))));
+      body.append(ul);
+    }
+    if (b.source === "search") body.append(el("div", { class: "hint" }, "(이전 위치를 새로 탐색해 평가했습니다)"));
+  }
+
+  function renderExplanations() {
+    const sec = $("explainSection");
+    const a = S.analysis;
+    const list = a && a.explanations;
+    if (!list || !list.length) { sec.hidden = true; return; }
+    sec.hidden = false;
+    $("explainTitle").textContent = `왜 좋은 수인가 — 상위 ${list.length} (${a.side_korean} 차례)`;
+    const body = $("explainBody");
+    body.innerHTML = "";
+    for (const ex of list) {
+      const item = el("div", { class: "explain-item", onclick: () => { S.selectedMove = S.selectedMove === ex.move ? null : ex.move; renderBoard(); renderMoves(); renderPv(); } });
+      item.append(el("div", { class: "head" }, el("span", { class: "rank" }, `${ex.rank}.`), withHanja(ex.head)));
+      item.append(reasonsList(ex.good, ex.risk, ex.plan));
+      body.append(item);
+    }
+  }
+
+  async function undo() {
+    if (!S.moves.length || S.busy) return;
+    S.moves.pop();
+    await refreshState();
+  }
+
+  async function jumpTo(n) {
+    if (S.busy) return;
+    S.moves = S.moves.slice(0, n);
+    await refreshState();
+  }
+
+  // The analysis already searched every move of this position, so the engine's reply is simply its
+  // top move: instant when the analysis is finished (or reasonably deep), a fresh search otherwise.
+  function analysedBestMove(minDepth) {
+    const a = S.analysis;
+    if (!a || !S.state || a.fen !== S.state.fen || !a.moves.length) return null;
+    const top = a.moves[0];
+    if (top.score_cp == null) return null;
+    if (a.final || a.depth >= minDepth) return top.move;
+    return null;
+  }
+
+  async function aiMove(fromAuto = false) {
+    if (S.busy || !S.state || S.state.status.is_over) return;
+    const ready = analysedBestMove(fromAuto ? 99 : 4);
+    if (ready) { stopAnalysis(); await playMove(ready); return; }
+    S.busy = true; $("aiBtn").disabled = true; $("aiBtn").textContent = "생각 중…";
+    stopAnalysis(); renderStats();          // free the engine for the move search
+    try {
+      const ms = Number($("timeSel").value) || 3000;
+      const d = await api("/api/bestmove", { start_fen: S.startFen, moves: S.moves, time_limit_ms: Math.min(ms, 30000), rules: rulesPayload(), engine: engineId() });
+      if (d.move) { S.moves.push(d.move); await refreshState(); }
+    } catch (e) { setAlert(e.message, "draw"); if ($("analysisToggle").checked) requestAnalysis(); }
+    finally { S.busy = false; $("aiBtn").disabled = false; $("aiBtn").textContent = "AI 착수"; }
+  }
+
+  function autoSide() { return $("autoSel").value; }
+  function maybeAutoReply() {
+    // called when an analysis of the current position finishes
+    if (autoSide() === "none" || !S.state || S.state.status.is_over || S.busy) return;
+    if (S.state.side !== autoSide()) return;
+    if (!S.analysis || !S.analysis.final || S.analysis.fen !== S.state.fen) return;
+    aiMove(true);
+  }
+
+  // ------------------------------------------------------------------ websocket
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws/analyze`);
+    ws.onopen = () => { wsReady = true; setWs("엔진 연결됨", false); if ($("analysisToggle").checked && S.state && !S.state.status.is_over) requestAnalysis(); };
+    ws.onclose = () => { wsReady = false; S.running = false; setWs("엔진 연결 끊김 — 재연결 중…", true); renderStats(); clearTimeout(wsRetry); wsRetry = setTimeout(connect, 1500); };
+    ws.onerror = () => { /* onclose follows */ };
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      S.lastMsgAt = Date.now();
+      if (msg.type === "error") { setAlert(`분석 오류: ${msg.detail}`, "draw"); S.running = false; renderStats(); return; }
+      if (msg.id !== S.reqId) return;                // stale job
+      if (msg.type === "heartbeat") { S.heartbeat = msg; renderStats(); return; }
+      if (msg.type === "update" || msg.type === "final") {
+        if (msg.superseded) return;
+        if (msg.error) { setAlert(`엔진 오류: ${msg.error}`, "draw"); S.running = false; renderStats(); return; }
+        S.analysis = msg;
+        S.heartbeat = null;
+        S.running = msg.type !== "final";
+        renderBoard(); renderMoves(); renderStats(); renderPv(); renderExplanations(); renderCalib();
+        if (msg.type === "final" && !msg.aborted) maybeAutoReply();
+      }
+    };
+  }
+  function setWs(text, bad) { const n = $("wsstate"); n.textContent = text; n.classList.toggle("bad", bad); }
+
+  function requestAnalysis() {
+    if (!wsReady || !S.state) return;
+    S.reqId += 1;
+    S.analysis = null;
+    S.heartbeat = null;
+    S.running = true;
+    S.lastMsgAt = Date.now();
+    ws.send(JSON.stringify({ type: "analyze", id: S.reqId, start_fen: S.startFen, moves: S.moves,
+                             time_limit_ms: Number($("timeSel").value), rules: rulesPayload(), engine: engineId() }));
+    renderStats(); renderMoves(); renderBoard();
+  }
+  function stopAnalysis() {
+    if (wsReady && S.running) ws.send(JSON.stringify({ type: "stop" }));
+    S.running = false;
+    S.reqId += 1;   // anything still in flight is stale
+  }
+
+  // ------------------------------------------------------------------ rendering: board
+  function wrColor(w, best) {
+    // colour encodes the drop-off from the best move; the number is the absolute estimate
+    const t = Math.max(0, Math.min(1, (best - w) / 0.10));   // 10 points below the best = fully orange
+    const a = [31, 94, 168], b = [210, 120, 42];
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
+  function renderBoard() {
+    const svg = $("board");
+    svg.textContent = "";
+    const st = S.state;
+    // board surface
+    svg.append(svgEl("rect", { x: 4, y: 4, width: W - 8, height: H - 8, rx: 10, fill: "var(--board)", stroke: "var(--board-edge)", "stroke-width": 3 }));
+    const g = svgEl("g", { stroke: "var(--board-line)", "stroke-width": 1.4, "stroke-linecap": "square" });
+    for (let r = 0; r < ROWS; r++) g.append(svgEl("line", { x1: MARGIN, y1: MARGIN + r * CELL, x2: MARGIN + 8 * CELL, y2: MARGIN + r * CELL }));
+    for (let c = 0; c < COLS; c++) g.append(svgEl("line", { x1: MARGIN + c * CELL, y1: MARGIN, x2: MARGIN + c * CELL, y2: MARGIN + 9 * CELL }));
+    for (const [r0, r1] of [[0, 2], [7, 9]]) {
+      g.append(svgEl("line", { x1: MARGIN + 3 * CELL, y1: MARGIN + r0 * CELL, x2: MARGIN + 5 * CELL, y2: MARGIN + r1 * CELL }));
+      g.append(svgEl("line", { x1: MARGIN + 5 * CELL, y1: MARGIN + r0 * CELL, x2: MARGIN + 3 * CELL, y2: MARGIN + r1 * CELL }));
+    }
+    svg.append(g);
+    // coordinates
+    const coords = svgEl("g", { fill: "var(--board-line)", "font-size": 11, opacity: .75, "font-weight": 600 });
+    for (let c = 0; c < COLS; c++) {
+      const col = S.flipped ? COLS - 1 - c : c;
+      coords.append(Object.assign(svgEl("text", { x: MARGIN + c * CELL, y: H - 9, "text-anchor": "middle" }), { textContent: String(col + 1) }));
+    }
+    for (let r = 0; r < ROWS; r++) {
+      const row = S.flipped ? ROWS - 1 - r : r;
+      coords.append(Object.assign(svgEl("text", { x: 12, y: MARGIN + r * CELL + 4, "text-anchor": "middle" }), { textContent: String((row + 1) % 10) }));
+    }
+    svg.append(coords);
+    if (!st) return;
+
+    // last move + check markers
+    if (st.last_move && st.last_move !== "pass") {
+      const [f, t] = parseMove(st.last_move);
+      const [fx, fy] = xy(f), [tx, ty] = xy(t);
+      svg.append(svgEl("rect", { x: fx - 12, y: fy - 12, width: 24, height: 24, fill: "none", stroke: "var(--gold)", "stroke-width": 2.5, rx: 3 }));
+      svg.append(svgEl("circle", { cx: tx, cy: ty, r: 31, fill: "none", stroke: "var(--gold)", "stroke-width": 3 }));
+    }
+    if (st.status.in_check) {
+      const ksq = st.king_sq[st.side === "cho" ? CHO : HAN];
+      const [kx, ky] = xy(ksq);
+      svg.append(svgEl("circle", { cx: kx, cy: ky, r: 33, fill: "none", stroke: "var(--danger)", "stroke-width": 4, opacity: .9 }));
+    }
+
+    // pieces
+    const sideIdx = st.side === "cho" ? CHO : HAN;
+    const movableFrom = new Set(st.legal_moves.filter(m => m.from_sq !== null).map(m => m.from_sq));
+    st.board.forEach((p, sq) => {
+      if (!p) return;
+      const [x, y] = xy(sq);
+      const r = PIECE_RADIUS[p.type];
+      const color = p.color === CHO ? "var(--cho)" : "var(--han)";
+      const mine = p.color === sideIdx && !st.status.is_over;
+      const immobile = mine && !movableFrom.has(sq);
+      const pg = svgEl("g", { class: "piece" + (mine ? "" : " inactive") + (immobile ? " immobile" : ""), transform: `translate(${x} ${y})` });
+      if (immobile) pg.setAttribute("opacity", "0.45");
+      const k = r * 0.4142;  // octagon
+      const pts = [[-k, -r], [k, -r], [r, -k], [r, k], [k, r], [-k, r], [-r, k], [-r, -k]].map(q => q.join(",")).join(" ");
+      pg.append(svgEl("polygon", { points: pts, fill: "var(--piece)", stroke: color, "stroke-width": S.selectedSq === sq ? 4.5 : 2.5 }));
+      if (S.selectedSq === sq) pg.append(svgEl("polygon", { points: pts, fill: "none", stroke: "var(--gold)", "stroke-width": 2, transform: "scale(1.22)" }));
+      const t = svgEl("text", { "text-anchor": "middle", "dominant-baseline": "central", fill: color, "font-size": r * 1.15, y: 1 });
+      t.textContent = p.hanja;
+      pg.append(t);
+      if (p.color === sideIdx && !st.status.is_over) {
+        pg.addEventListener("click", () => selectSquare(sq));
+        pg.setAttribute("tabindex", "0");
+        pg.setAttribute("role", "button");
+        pg.setAttribute("aria-label", `${p.hanja} ${sqName(sq)}`);
+        pg.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSquare(sq); } });
+      }
+      svg.append(pg);
+    });
+
+    // overlays
+    const byMove = analysisByMove();
+    const best = S.analysis && S.analysis.moves.length && S.analysis.moves[0].estimated_winrate != null ? S.analysis.moves[0].estimated_winrate : null;
+    const overlay = svgEl("g");
+    if (S.selectedSq !== null) {
+      const legal = st.legal_moves.filter(m => m.from_sq === S.selectedSq);
+      for (const m of legal) {
+        const [tx, ty] = xy(m.to_sq);
+        const a = byMove.get(m.move);
+        const grp = svgEl("g", { class: "target" });
+        if (a && a.estimated_winrate != null) {
+          const col = wrColor(a.estimated_winrate, best);
+          grp.append(svgEl("circle", { cx: tx, cy: ty, r: 23, fill: col, opacity: .92, stroke: a.rank === 1 ? "#fff" : "none", "stroke-width": 3 }));
+          grp.append(Object.assign(svgEl("text", { x: tx, y: ty + 5, class: "wr-label", "text-anchor": "middle", fill: "#fff", "font-size": 13.5 }),
+                                   { textContent: pct(a) }));
+        } else {
+          grp.append(svgEl("circle", { cx: tx, cy: ty, r: m.capture ? 20 : 8, fill: m.capture ? "none" : "rgba(60,45,20,.6)", stroke: "rgba(60,45,20,.7)", "stroke-width": m.capture ? 3 : 0 }));
+        }
+        grp.append(svgEl("circle", { cx: tx, cy: ty, r: 28, fill: "transparent" }));
+        grp.addEventListener("click", () => playMove(m.move, { brief: true }));
+        grp.setAttribute("tabindex", "0"); grp.setAttribute("role", "button");
+        grp.setAttribute("aria-label", `${m.notation}${a ? " " + pct(a) : ""}`);
+        grp.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); playMove(m.move, { brief: true }); } });
+        overlay.append(grp);
+      }
+    } else if (S.analysis) {
+      const shown = visibleMoves().filter(m => m.to_sq !== null && m.estimated_winrate != null);
+      // one label per destination square: the best move landing there
+      const perSq = new Map();
+      for (const m of shown) { if (!perSq.has(m.to_sq)) perSq.set(m.to_sq, { m, n: 0 }); perSq.get(m.to_sq).n += 1; }
+      // arrows for the top three (or the selected move)
+      const arrowed = S.selectedMove ? shown.filter(m => m.move === S.selectedMove) : shown.slice(0, 3);
+      const defs = svgEl("defs");
+      arrowed.forEach((m, i) => {
+        const id = `ah${i}`;
+        const col = wrColor(m.estimated_winrate, best);
+        const mk = svgEl("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 5, markerHeight: 5, orient: "auto-start-reverse" });
+        mk.append(svgEl("path", { d: "M0,0 L10,5 L0,10 z", fill: col }));
+        defs.append(mk);
+        const [fx, fy] = xy(m.from_sq), [tx, ty] = xy(m.to_sq);
+        const dx = tx - fx, dy = ty - fy, len = Math.hypot(dx, dy) || 1;
+        const ex = tx - dx / len * 26, ey = ty - dy / len * 26;
+        overlay.append(svgEl("line", { x1: fx, y1: fy, x2: ex, y2: ey, stroke: col, "stroke-width": i === 0 || S.selectedMove ? 5 : 3.5, opacity: .85, "marker-end": `url(#${id})`, "stroke-linecap": "round" }));
+      });
+      svg.append(defs);
+      for (const { m, n } of perSq.values()) {
+        const [tx, ty] = xy(m.to_sq);
+        const col = wrColor(m.estimated_winrate, best);
+        const grp = svgEl("g", { class: "target" });
+        grp.append(svgEl("circle", { cx: tx, cy: ty, r: 21, fill: col, opacity: m.rank <= 3 ? .95 : .8, stroke: m.rank === 1 ? "#fff" : "none", "stroke-width": 3 }));
+        grp.append(Object.assign(svgEl("text", { x: tx, y: ty + 4.2, class: "wr-label", "text-anchor": "middle", fill: "#fff", "font-size": 12 }), { textContent: pct(m) }));
+        if (n > 1) grp.append(Object.assign(svgEl("text", { x: tx + 18, y: ty - 14, "text-anchor": "middle", fill: "var(--board-line)", "font-size": 10, "font-weight": 700 }), { textContent: `+${n - 1}` }));
+        grp.addEventListener("click", () => selectSquare(m.from_sq));
+        grp.setAttribute("aria-label", `${m.notation} ${pct(m)}`);
+        overlay.append(grp);
+      }
+    }
+    svg.append(overlay);
+  }
+
+  function parseMove(s) {
+    const [a, b] = s.split("-");
+    const toSq = (t) => { const r = (Number(t[0]) + 9) % 10, c = Number(t[1]) - 1; return r * COLS + c; };
+    return [toSq(a), toSq(b)];
+  }
+  // The engine reports every number from the side to move.  "승률 기준" lets the viewer pin the
+  // perspective to one colour; then numbers (not the best-move colouring) are flipped.
+  function flipped() {
+    const p = $("perspSel").value;
+    return S.analysis && p !== "turn" && p !== S.analysis.side;
+  }
+  function view(m) {
+    const f = flipped();
+    const w = m.estimated_winrate == null ? null : (f ? 1 - m.estimated_winrate : m.estimated_winrate);
+    const mate = m.mate == null ? null : (f ? -m.mate : m.mate);
+    const score = m.score == null ? null : (f ? -m.score : m.score);
+    const points = m.decisive === "points" ? (f ? -Math.sign(m.score_cp) : Math.sign(m.score_cp)) : 0;
+    return { w, mate, score, points };
+  }
+  function pct(m) {
+    const v = view(m);
+    if (v.mate) return v.mate > 0 ? `M${v.mate}` : `-M${-v.mate}`;
+    if (v.points) return v.points > 0 ? "점수승" : "점수패";
+    if (v.w == null) return "—";
+    return `${(v.w * 100).toFixed(v.w * 100 >= 99.95 ? 0 : 1)}%`;
+  }
+  function evalText(m) {
+    const v = view(m);
+    if (v.score == null) return "—";
+    if (v.mate) return v.mate > 0 ? `M${v.mate}` : `-M${-v.mate}`;
+    if (v.points) return v.points > 0 ? "점수승" : "점수패";
+    return (v.score > 0 ? "+" : "") + v.score.toFixed(2);
+  }
+  const perspLabel = () => {
+    const p = $("perspSel").value;
+    return p === "turn" ? "" : p === "cho" ? " (초 기준)" : " (한 기준)";
+  };
+  function analysisByMove() {
+    const map = new Map();
+    if (S.analysis) for (const m of S.analysis.moves) map.set(m.move, m);
+    return map;
+  }
+  function visibleMoves() {
+    if (!S.analysis) return [];
+    const n = Number($("topSel").value);
+    return n ? S.analysis.moves.slice(0, n) : S.analysis.moves;
+  }
+
+  function selectSquare(sq) {
+    if (!S.state || S.state.status.is_over) return;
+    const st = S.state;
+    if (!st.legal_moves.some(m => m.from_sq === sq)) {
+      // nothing to select: say why instead of silently doing nothing
+      const p = st.board[sq];
+      const why = st.status.bikjang && st.rules && st.rules.bikjang === "forced"
+        ? "빅장 중이라 빅장을 푸는 수(궁 이동 또는 두 궁 사이 차단)만 둘 수 있습니다. 이 기물로는 풀 수 없습니다."
+        : st.status.in_check ? "장군을 받는 중이라 장군을 피하는 수만 둘 수 있습니다." : "이 기물은 지금 둘 수 있는 곳이 없습니다.";
+      setAlert(`${p ? p.hanja + " " : ""}${sqName(sq)}: ${why}`, "draw");
+      S.selectedSq = null; S.selectedMove = null;
+      renderBoard(); renderMoves(); renderPv();
+      return;
+    }
+    S.selectedSq = S.selectedSq === sq ? null : sq;
+    S.selectedMove = null;
+    renderBoard(); renderMoves(); renderPv();
+  }
+
+  // ------------------------------------------------------------------ rendering: panel
+  function setAlert(text, cls) { const a = $("alert"); a.textContent = text || ""; a.className = cls || ""; }
+
+  function renderTurn() {
+    const st = S.state;
+    if (!st) return;
+    const t = $("turn");
+    t.innerHTML = "";
+    t.append(el("span", { class: "dot", style: `background:${SIDE_COLOR[st.side]}` }), `${st.side_korean} 차례`, el("span", { style: "color:var(--muted);font-weight:450;margin-left:8px" }, `${st.ply}수`));
+    const s = st.status;
+    const pts = s.points ? `초 ${s.points.cho} : 한 ${s.points.han}` : "";
+    const rule = (st.rules && st.rules.bikjang) || "draw";
+    if (s.status === "checkmate") setAlert(`외통 — ${s.winner === "cho" ? "초" : "한"} 승`);
+    else if (s.status === "draw_bikjang") setAlert("빅장을 풀지 않아 무승부", "draw");
+    else if (s.status === "bikjang_points") setAlert(s.winner ? `빅장을 풀지 않아 점수 판정 — ${s.winner === "cho" ? "초" : "한"} 승 (${pts})` : `빅장 점수 판정 — 동점 무승부 (${pts})`);
+    else if (s.status === "draw_repetition") setAlert("같은 모양 3회 — 무승부", "draw");
+    else if (s.status === "draw_passes") setAlert("양측 연속 한수쉼 — 무승부", "draw");
+    else if (s.status === "passes_points") setAlert(s.winner ? `양측 연속 한수쉼 — 점수 판정: ${s.winner === "cho" ? "초" : "한"} 승 (${pts})` : `양측 연속 한수쉼 — 동점 무승부 (${pts})`);
+    else if (s.status === "draw_move_limit") setAlert("수 제한 — 무승부", "draw");
+    else if (s.in_check) setAlert("장군!");
+    else if (s.bikjang && rule === "forced") setAlert(`빅장 — 궁을 옮기거나 사이를 막아야 합니다. 한수쉼을 누르면 받아들이고 점수로 판정 (${pts})`, "draw");
+    else if (s.bikjang && rule === "draw") setAlert("빅장 — 궁을 옮기거나 사이를 막지 않으면 무승부", "draw");
+    else if (s.bikjang && rule === "points") setAlert(`빅장 — 풀지 않으면 점수 판정 (${pts})`, "draw");
+    else if (s.bikjang && rule === "off") setAlert("두 궁이 마주보고 있음 (빅장 규칙 없음 — 계속 둡니다)", "draw");
+    else if (s.repetition_count >= 2) setAlert(`같은 모양 ${s.repetition_count}회째${(st.rules && st.rules.repetition) === "draw" ? " — 3회면 무승부" : ""}`, "draw");
+    else setAlert("");
+    $("undoBtn").disabled = !S.moves.length;
+    $("passBtn").disabled = s.is_over || s.in_check;
+    $("aiBtn").disabled = s.is_over || S.busy;
+  }
+
+  function renderStats() {
+    const a = S.analysis, box = $("stats");
+    box.innerHTML = "";
+    const stat = (v, label, running) => el("div", { class: "stat" + (running ? " running" : "") }, el("b", {}, v), el("span", {}, label));
+    if (!a) {
+      const hb = S.running && S.heartbeat ? S.heartbeat : null;
+      box.append(stat(S.running ? (hb && hb.waiting_for_engine ? "대기" : "…") : "—",
+                      S.running ? (hb && hb.waiting_for_engine ? "엔진 사용 중 — 잠시 후 시작" : "분석 시작") : "분석 꺼짐", S.running));
+      $("stopBtn").classList.toggle("show", S.running);
+      return;
+    }
+    const hb = S.running && S.heartbeat ? S.heartbeat : null;
+    const depthTxt = hb && hb.depth_in_progress > a.depth ? `${a.depth} → ${hb.depth_in_progress} (${hb.moves_done_at_depth}/${hb.move_count})` : String(a.depth);
+    box.append(stat(depthTxt, hb && hb.depth_in_progress > a.depth ? "완료 깊이 → 탐색 중" : "완료 깊이", S.running));
+    box.append(stat(String(a.seldepth), "최대 깊이"));
+    box.append(stat(short(hb ? hb.nodes : a.nodes), "노드"));
+    box.append(stat(short(a.nps), "노드/초"));
+    const tms = hb ? hb.elapsed_ms : a.time_ms;
+    box.append(stat(`${(tms / 1000).toFixed(tms < 10000 ? 2 : 1)} s`, "탐색 시간"));
+    if (a.tt && a.tt.hit_rate != null) box.append(stat(`${Math.round(a.tt.hit_rate * 100)}%`, "TT 적중률"));
+    if (a.engine && a.engine.backend === "uci") box.append(stat(a.engine.name.replace("Fairy-Stockfish", "F-SF"), `엔진 (${a.engine.threads} thread)`));
+    $("stopBtn").classList.toggle("show", S.running);
+  }
+  const short = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(n < 1e4 ? 1 : 0)}k` : String(n);
+
+  function moveHtml(m, sideKo) {
+    const cls = sideKo === "초" ? "cho" : "han";
+    const frag = document.createDocumentFragment();
+    if (m.piece) frag.append(el("span", { class: `hanja ${cls}` }, m.piece));
+    frag.append(m.from ? `${m.from}→${m.to}` : "한수쉼");
+    if (m.capture) frag.append(el("span", { class: "cap" }, ` ×${m.capture}`));
+    if (m.gives_check) frag.append(el("span", { class: "chk" }, "장"));
+    return frag;
+  }
+
+  function renderMoves() {
+    const wrap = $("movesWrap");
+    wrap.innerHTML = "";
+    const a = S.analysis;
+    if (!a) {
+      wrap.append(el("div", { class: "empty" }, S.running ? "엔진이 첫 결과를 계산하고 있습니다" : ($("analysisToggle").checked ? (S.state && S.state.status.is_over ? "게임이 끝났습니다" : "분석 대기 중") : "분석이 꺼져 있습니다")));
+      return;
+    }
+    if (!a.moves.length) { wrap.append(el("div", { class: "empty" }, "합법수가 없습니다")); return; }
+    const label = (a.calibration.label === "Win Rate" ? "승률 (Win Rate)" : "예상 승률 (Estimated Win Rate)") + perspLabel();
+    let moves = visibleMoves();
+    if (S.selectedSq !== null) moves = a.moves.filter(m => m.from_sq === S.selectedSq);
+    if (!moves.length) { wrap.append(el("div", { class: "empty" }, "이 기물로 둘 수 있는 수가 없습니다")); return; }
+    const table = el("table", { class: "moves" });
+    table.append(el("thead", {}, el("tr", {},
+      el("th", { class: "num" }, "#"), el("th", {}, "수"), el("th", {}, label), el("th", { class: "num" }, "평가"),
+      el("th", { class: "num" }, "깊이"), el("th", { class: "num" }, "노드"), el("th", {}, ""))));
+    const tbody = el("tbody");
+    for (const m of moves) {
+      const tr = el("tr", { class: "row" + (m.rank === 1 ? " best" : "") + (S.selectedMove === m.move ? " selected" : ""),
+                            onclick: () => { S.selectedMove = S.selectedMove === m.move ? null : m.move; renderBoard(); renderMoves(); renderPv(); } });
+      const w = view(m).w;
+      const evalTxt = evalText(m);
+      tr.append(
+        el("td", { class: "num" }, String(m.rank)),
+        el("td", { class: "move" }, moveHtml(m, a.side_korean)),
+        el("td", {}, el("div", { class: "wr" }, el("div", { class: "bar" }, el("i", { style: `width:${w == null ? 0 : (w * 100).toFixed(1)}%` })),
+                                              el("span", { class: "pct" }, w == null ? "—" : pct(m)))),
+        el("td", { class: "num" }, evalTxt),
+        el("td", { class: "num" }, String(m.depth)),
+        el("td", { class: "num" }, short(m.nodes)),
+        el("td", {}, el("button", { class: "play-btn", onclick: (e) => { e.stopPropagation(); playMove(m.move, { brief: true }); } }, "두기")),
+      );
+      tbody.append(tr);
+    }
+    table.append(tbody);
+    wrap.append(table);
+  }
+
+  function renderPv() {
+    const sec = $("pvSection");
+    const a = S.analysis;
+    if (!a || !a.moves.length) { sec.hidden = true; return; }
+    const m = S.selectedMove ? a.moves.find(x => x.move === S.selectedMove) : a.moves[0];
+    if (!m || !m.pv_pretty || !m.pv_pretty.length) { sec.hidden = true; return; }
+    sec.hidden = false;
+    $("pvTitle").textContent = `예상 진행 — ${m.notation} (${pct(m)}, 깊이 ${m.depth})`;
+    const line = $("pvLine");
+    line.innerHTML = "";
+    let side = a.side_korean;
+    m.pv_pretty.forEach((s, i) => {
+      const cls = side === "초" ? "cho" : "han";
+      const parts = s.match(/^(\S)\s(.*)$/);
+      const span = el("span", { class: cls });
+      span.append(el("span", { class: "ply" }, `${i + 1}.`));
+      if (parts && parts[1].length === 1 && /[\u4e00-\u9fff]/.test(parts[1])) { span.append(el("span", { class: "hanja" }, parts[1]), ` ${parts[2]}`); }
+      else span.append(s);
+      line.append(span, "  ");
+      side = side === "초" ? "한" : "초";
+    });
+  }
+
+  function renderEval() {
+    const st = S.state, dl = $("evalList");
+    dl.innerHTML = "";
+    if (!st) return;
+    const names = { material: "기물", pst: "위치", pawn_structure: "졸 구조", king_safety: "궁 안전", mobility: "기동력", tempo: "선수" };
+    for (const [k, label] of Object.entries(names)) dl.append(el("dt", {}, label), el("dd", {}, fmt(st.eval[k])));
+    dl.append(el("dt", { class: "total" }, "합계"), el("dd", { class: "total" }, fmt(st.eval.total)));
+    const mp = st.material_points;
+    dl.append(el("dt", {}, "기물 점수 (초 / 한)"), el("dd", {}, `${mp.cho} / ${mp.han}`));
+    dl.append(el("dt", {}, "Zobrist"), el("dd", { style: "font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px" }, st.hash));
+  }
+  const fmt = (cp) => `${cp > 0 ? "+" : ""}${(cp / 100).toFixed(2)}`;
+
+  function renderHistory() {
+    const h = $("history");
+    h.innerHTML = "";
+    h.append(el("button", { class: S.moves.length === 0 ? "cur" : "", onclick: () => jumpTo(0) }, "시작"));
+    S.moves.forEach((mv, i) => {
+      const b = el("button", { class: i === S.moves.length - 1 ? "cur" : "", onclick: () => jumpTo(i + 1) }, `${i + 1}. ${mv === "pass" ? "한수쉼" : mv}`);
+      h.append(b);
+    });
+  }
+
+  function renderCalib() {
+    const n = $("calibNote");
+    const c = S.analysis ? S.analysis.calibration : null;
+    if (!c) { n.textContent = "승률은 엔진 평가값을 로지스틱 함수로 변환한 추정치이며, 게임 결과 데이터로 보정되지 않았습니다."; return; }
+    n.textContent = c.calibrated
+      ? `승률은 ${NUMS.format(c.samples)}판의 결과로 보정된 ${c.model} 모델(K=${c.k.toFixed(0)})입니다.`
+      : `“예상 승률”은 ${S.analysis.engine && S.analysis.engine.backend === "uci" ? S.analysis.engine.name : "내장 엔진"}의 평가값(centipawn)을 로지스틱 함수 1/(1+e^(-s/K)), K=${c.k.toFixed(0)}로 변환한 미보정 추정치입니다. 대국 결과로 K를 학습하면 보정된 승률로 바뀝니다.`;
+  }
+
+  function renderAll() { renderTurn(); renderBoard(); renderStats(); renderMoves(); renderPv(); renderExplanations(); renderEval(); renderHistory(); renderCalib(); }
+
+  // ------------------------------------------------------------------ wiring
+  function applyEngineList(list) {
+    const sel = $("engineSel");
+    sel.innerHTML = "";
+    for (const e of list) {
+      const opt = el("option", { value: e.id }, e.available ? e.name : `${e.name} (없음)`);
+      if (!e.available) { opt.disabled = true; opt.title = e.hint || ""; }
+      sel.append(opt);
+    }
+    const hint = list.find(e => e.id === "fsf");
+    if (hint && !hint.available) $("engineHint").textContent = hint.hint;
+    else $("engineHint").textContent = "";
+    syncRuleSelectWithEngine();
+  }
+  function syncRuleSelectWithEngine() {
+    // Fairy-Stockfish knows two bikjang rules (없음 = janggicasual, 전통 = janggi); grey out the rest
+    const fsf = engineId() === "fsf";
+    const sel = $("bikjangSel");
+    for (const opt of sel.options) opt.disabled = fsf && !["off", "forced"].includes(opt.value);
+    if (fsf && sel.selectedOptions[0] && sel.selectedOptions[0].disabled) sel.value = "forced";
+    sel.title = fsf ? "Fairy-Stockfish는 '없음'과 '전통' 규칙을 지원합니다" : "";
+  }
+
+  async function init() {
+    const meta = await api("/api/setups");
+    const setups = meta.setups;
+    for (const id of ["choSetup", "hanSetup"]) {
+      const s = $(id);
+      setups.forEach(name => s.append(el("option", { value: name }, name)));
+    }
+    if (meta.engines) applyEngineList(meta.engines);
+    $("engineSel").addEventListener("change", () => { syncRuleSelectWithEngine(); if (S.state) refreshState().catch(e => setAlert(e.message, "draw")); });
+    $("newBtn").addEventListener("click", newGame);
+    $("undoBtn").addEventListener("click", undo);
+    $("passBtn").addEventListener("click", () => playMove("pass", { brief: true }));
+    $("aiBtn").addEventListener("click", aiMove);
+    $("flipBtn").addEventListener("click", () => { S.flipped = !S.flipped; renderBoard(); });
+    $("fenBtn").addEventListener("click", () => loadFen($("fenInput").value.trim()));
+    $("fenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") loadFen($("fenInput").value.trim()); });
+    $("analysisToggle").addEventListener("change", (e) => {
+      if (e.target.checked) requestAnalysis();
+      else { stopAnalysis(); S.analysis = null; renderBoard(); renderMoves(); renderStats(); renderPv(); }
+    });
+    $("timeSel").addEventListener("change", () => { if ($("analysisToggle").checked) { stopAnalysis(); requestAnalysis(); } });
+    $("topSel").addEventListener("change", () => { renderBoard(); renderMoves(); });
+    $("perspSel").addEventListener("change", () => { renderBoard(); renderMoves(); renderPv(); });
+    $("autoSel").addEventListener("change", () => { if (S.analysis && S.analysis.final) maybeAutoReply(); else if (!$("analysisToggle").checked) aiMove(true); });
+    for (const id of ["bikjangSel", "repSel"]) $(id).addEventListener("change", () => { if (S.state) refreshState().catch(e => setAlert(e.message, "draw")); });
+    $("stopBtn").addEventListener("click", () => { stopAnalysis(); renderStats(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+      if (e.key === "Escape") { S.selectedSq = null; S.selectedMove = null; renderBoard(); renderMoves(); renderPv(); }
+      if (e.key === "ArrowLeft") undo();
+    });
+    connect();
+    setInterval(() => {
+      // a running job sends a heartbeat every 2 s; long silence means the connection or handler is dead
+      if (S.running && wsReady && Date.now() - S.lastMsgAt > WATCHDOG_MS) {
+        setWs("엔진 응답 없음 — 재연결", true);
+        try { ws.close(); } catch (_) { /* onclose reconnects */ }
+      }
+    }, 3000);
+    await newGame();
+  }
+  init().catch(e => setAlert(`초기화 실패: ${e.message}`, "draw"));
+})();
+</script>
+</body>
+</html>

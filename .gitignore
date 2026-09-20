@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+data/bench_*.json
+data/models/
+data/*.jsonl
+node_modules/
+engines/fairy-stockfish*
+android/build/
+android/*/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/*/.cxx/
+android/tools/desktop-jni-test/build/
+android/keystore.properties
+android/*.jks
