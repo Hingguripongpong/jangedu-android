@@ -60,11 +60,13 @@ import com.example.janggiai.game.AnalysisCandidates
 import com.example.janggiai.game.AnalysisStrength
 import com.example.janggiai.game.CandidateMarker
 import com.example.janggiai.game.Move
+import com.example.janggiai.game.SetupChoice
 import com.example.janggiai.game.WinRateFormat
 import com.example.janggiai.game.WinRatePerspective
 import com.example.janggiai.ui.board.BoardCandidate
 import com.example.janggiai.ui.board.BoardOverlay
 import com.example.janggiai.ui.board.JanggiBoard
+import com.example.janggiai.ui.common.DropdownSelector
 import com.example.janggiai.ui.common.MoveNavigation
 import com.example.janggiai.ui.common.MoveStrip
 import com.example.janggiai.ui.common.SelectableChips
@@ -84,6 +86,9 @@ fun AnalysisScreen(recordId: String?, onBack: () -> Unit) {
     val snackbar = remember { SnackbarHostState() }
     var menuOpen by remember { mutableStateOf(false) }
     var fenDialog by remember { mutableStateOf(false) }
+    var newPositionDialog by remember(recordId) {
+        mutableStateOf(recordId == null)
+    }
 
     LaunchedEffect(state.message) { state.message?.let { snackbar.showSnackbar(it); vm.clearMessage() } }
 
@@ -120,7 +125,13 @@ fun AnalysisScreen(recordId: String?, onBack: () -> Unit) {
                     TextButton(onClick = { vm.toggleFlip(settings.flipBoard) }, modifier = Modifier.testTag("flip_button")) { Text(if (flipped) "한 시점" else "초 시점") }
                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "메뉴") }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(text = { Text("새 국면") }, onClick = { menuOpen = false; vm.newGame() })
+                        DropdownMenuItem(
+                            text = { Text("새 국면") },
+                            onClick = {
+                                menuOpen = false
+                                newPositionDialog = true
+                            }
+                        )
                         DropdownMenuItem(text = { Text("FEN 불러오기") }, onClick = { menuOpen = false; fenDialog = true })
                         DropdownMenuItem(text = { Text("기보 저장") }, onClick = { menuOpen = false; vm.saveRecord() })
                         DropdownMenuItem(text = { Text("다시 분석 (캐시 무시)") }, onClick = { menuOpen = false; vm.reanalyze() })
@@ -185,6 +196,57 @@ fun AnalysisScreen(recordId: String?, onBack: () -> Unit) {
             }
         }
     }
+
+    if (newPositionDialog) {
+        var choSetup by remember { mutableStateOf(SetupChoice.MSSM) }
+        var hanSetup by remember { mutableStateOf(SetupChoice.MSSM) }
+
+        AlertDialog(
+            onDismissRequest = { newPositionDialog = false },
+            title = { Text("새 국면") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DropdownSelector(
+                        label = "초 배치",
+                        options = SetupChoice.entries,
+                        selected = choSetup,
+                        text = { it.label },
+                        onSelect = { choSetup = it },
+                    )
+
+                    DropdownSelector(
+                        label = "한 배치",
+                        options = SetupChoice.entries,
+                        selected = hanSetup,
+                        text = { it.label },
+                        onSelect = { hanSetup = it },
+                    )
+
+                    Text(
+                        "배치 이름은 자기 진영의 왼쪽에서 오른쪽 순서입니다. 랜덤은 네 가지 표준 배치 중 하나로 정해집니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.newGame(choSetup, hanSetup)
+                        newPositionDialog = false
+                    }
+                ) {
+                    Text("시작")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { newPositionDialog = false }) {
+                    Text("취소")
+                }
+            },
+        )
+    }
+
 
     if (fenDialog) {
         var text by remember { mutableStateOf(pos.toFen()) }

@@ -11,6 +11,7 @@ import com.example.janggiai.game.AnalysisUiState
 import com.example.janggiai.game.GameSession
 import com.example.janggiai.game.Move
 import com.example.janggiai.game.Piece
+import com.example.janggiai.game.SetupChoice
 import com.example.janggiai.ui.common.AppForeground
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -145,7 +146,19 @@ class AnalysisViewModel(private val handle: SavedStateHandle, private val contai
     fun last() = setSession(_state.value.session.last())
     fun goTo(index: Int) = setSession(_state.value.session.goTo(index))
 
-    fun newGame() { viewModelScope.launch { runCatching { container.engines.get().newGame() } }; setSession(GameSession.newGame(settings.rules)) }
+    fun newGame(choSetup: SetupChoice, hanSetup: SetupChoice) {
+        viewModelScope.launch {
+            runCatching { container.engines.get().newGame() }
+        }
+
+        setSession(
+            GameSession.newGame(
+                rules = settings.rules,
+                choSetup = choSetup.resolve(),
+                hanSetup = hanSetup.resolve(),
+            )
+        )
+    }
 
     /** Returns null on success, or an error message. */
     fun loadFen(fen: String): String? {
