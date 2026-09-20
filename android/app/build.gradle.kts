@@ -65,9 +65,11 @@ android {
             // Ship native symbol tables inside the AAB so Play Console can symbolicate libjanggi_engine.so crashes.
             // Does not affect APK size (symbols are stripped from the packaged .so).
             ndk { debugSymbolLevel = "SYMBOL_TABLE" }
-            signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release") else {
-                logger.warn("WARNING: keystore.properties not found - release build signed with the DEBUG key (not uploadable to Play).")
-                signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("WARNING: keystore.properties not found - release build will not use a signing key.")
+                null
             }
         }
     }
