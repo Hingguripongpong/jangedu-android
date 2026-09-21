@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.example.janggiai.BuildConfig
@@ -41,6 +42,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     var showing by remember { mutableStateOf<String?>(null) }   // asset name currently expanded
     var text by remember { mutableStateOf("") }
     LaunchedEffect(showing) {
@@ -52,8 +54,21 @@ fun AboutScreen(onBack: () -> Unit) {
         TopAppBar(title = { Text("정보") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로") } })
     }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-            Text("Janggi AI", style = MaterialTheme.typography.headlineSmall)
+            Text("장기 교육", style = MaterialTheme.typography.headlineSmall)
             Text("버전 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 패키지 ${BuildConfig.APPLICATION_ID}", style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+
+            Text("라이선스: GNU GPL v3 이상")
+
+            TextButton(
+                onClick = {
+                    uriHandler.openUri(
+                        "https://github.com/Hingguripongpong/jangedu-android"
+                    )
+                }
+            ) {
+                Text("전체 소스 코드 보기")
+            }
             Spacer(Modifier.height(12.dp))
             Text("이 앱은 인터넷 권한이 없으며 계정·광고·분석 도구를 사용하지 않습니다. 모든 계산은 기기 안에서 이루어지고, 기보는 앱 내부 저장소에만 저장됩니다.", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(16.dp))

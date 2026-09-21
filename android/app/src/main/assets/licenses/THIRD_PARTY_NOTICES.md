@@ -1,6 +1,6 @@
 # Third-party software notices
 
-This application ("Janggi AI") bundles the following third-party software.  Full license texts
+This application ("장기 교육") bundles the following third-party software.  Full license texts
 are in the `licenses/` directory and are shown inside the app (정보 → 오픈소스 라이선스).
 
 ## Fairy-Stockfish — GNU General Public License v3.0 or later
@@ -22,24 +22,27 @@ are in the `licenses/` directory and are shown inside the app (정보 → 오픈
 * Build configuration: `LARGEBOARDS`, `PRECOMPUTED_MAGICS`, `NNUE_EMBEDDING_OFF`, `USE_PTHREADS`
   (classical evaluation; no NNUE network file is bundled).  See `engine/src/main/cpp/CMakeLists.txt`.
 
-### GPL compliance — what this repository provides and what it does NOT settle
+### GPL compliance and corresponding source
 
-The GPL requires that anyone who receives the binary can obtain the *corresponding source*.  This
-repository already contains everything that goes into `libjanggi_engine.so`: the vendored engine
-sources, `engine_host.cpp`, `janggi_engine_jni.cpp`, `CMakeLists.txt` and the Gradle build scripts.
-The app shows the license, engine version, commit and source URL in its About screen, and ships
-`THIRD_PARTY_NOTICES.md` and `licenses/GPL-3.0.txt`.
+This application, including its Kotlin/Compose application code, JNI bindings,
+native engine host, build scripts, and the bundled Fairy-Stockfish engine, is
+distributed under the GNU General Public License version 3 or later
+(GPL-3.0-or-later).
 
-**This does not by itself settle the licensing of the rest of the app.**  The engine is loaded into
-the app's own process and called through JNI, which is the situation the GPL treats as a *combined
-work* rather than "mere aggregation".  Publishing only the engine and JNI sources is therefore very
-likely insufficient: the whole application (Kotlin/Compose code included) may have to be made
-available under GPL-compatible terms.  See `docs/LICENSING.md` for the two release paths
-(A: release the entire app under GPL-3.0-or-later, which still permits selling it on Google Play;
-B: keep the app source closed only after professional legal review and possibly a different
-architecture).  Nothing in this file is legal advice; the distributor is responsible for compliance.
-The GPL also states that the program is provided WITHOUT ANY WARRANTY.
+The complete source code for this application is available at:
 
+https://github.com/Hingguripongpong/jangedu-android
+
+The repository contains the application source, JNI bindings,
+`engine_host.cpp`, `janggi_engine_jni.cpp`, CMake/Gradle build configuration,
+and the Fairy-Stockfish source used to build `libjanggi_engine.so`.
+
+The full GPL version 3 license text is included with the application in
+`licenses/GPL-3.0.txt` and in the source repository as `LICENSE`.
+
+Fairy-Stockfish remains credited to its respective copyright holders as
+described above. The program is provided WITHOUT ANY WARRANTY, as described
+in the GPL.
 ## Android / JetBrains libraries — Apache License 2.0
 
 AndroidX (Compose, Material 3, Lifecycle, Navigation, Activity, Core), Kotlin standard library and
