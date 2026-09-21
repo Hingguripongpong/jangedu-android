@@ -1,14 +1,68 @@
-# Janggi AI v0.4.0 — 모든 합법수의 예상 승률을 보여주는 장기 분석 엔진
+# 장기 교육 — Android 장기 AI 분석 및 학습 앱
 
-바둑 분석 프로그램처럼, 현재 장기 위치에서 **둘 수 있는 모든 수**에 대해 엔진 평가값·예상 승률·깊이·노드·예상 진행(PV)을
-계산해 판 위와 표에 표시한다. 규칙 엔진, 탐색, 평가, 분석 API, 웹 UI, 테스트가 모두 실제로 동작한다.
+**장기 교육**은 Android에서 완전히 오프라인으로 동작하는 장기 AI 분석·학습 앱입니다.
 
-엔진은 두 가지다. **내장 Python 엔진**(이 저장소의 규칙엔진·알파베타·평가; 3초에 깊이 5–9)과, 선택 시 같은 UI에서 그대로 쓰는
-**Fairy-Stockfish**(C++ · 다중 스레드 · 2초에 깊이 9–12; `engines/` 폴더에 실행 파일을 넣으면 활성화). 내장 엔진의 합법수 생성은
-Fairy-Stockfish의 janggi 변형과 perft 수치가 완전히 일치한다(§규칙 구현).
+Fairy-Stockfish 장기 엔진을 앱 내부 native library로 포함하며, 사용자가 둘 수 있는 모든 합법수를 분석해 엔진 평가와 예상 승률을 보여줍니다.
 
-승률 숫자는 **엔진 평가값(centipawn)을 로지스틱 함수로 변환한 추정치**이며 UI와 API가 이를 항상 `Estimated Win Rate`로 표기한다.
-자가 대국 결과로 변환 곡선을 학습하면(`Calibrator.fit`) 라벨이 `Win Rate`로 바뀐다. 무작위 값은 어디에도 없다.
+현재 Android 앱의 주요 기능:
+
+- 사람 vs AI 장기
+- 모든 합법수 분석 및 후보 전체 표시
+- 각 후보수의 엔진 평가 및 예상 승률 표시
+- AI 훈수
+  - 사용자가 둔 수와 최선수 비교
+  - 승률 손실
+  - 등급 및 설명
+  - PV 표시
+- 초/한 선택 및 랜덤 진영 선택
+- 초/한 각각 독립적인 마·상 초기 배치 선택
+- 분석 모드 초기 배치 선택
+- 판 뒤집기
+- 무르기 / 한수쉼
+- 상태 저장 및 복원
+- 완전 오프라인 동작
+
+Android 앱은 Kotlin, Jetpack Compose, Android NDK/CMake/JNI와 Fairy-Stockfish를 사용합니다.
+
+## 라이선스
+
+이 애플리케이션의 소스 코드는 **GNU General Public License version 3 or later (GPL-3.0-or-later)** 조건으로 제공됩니다.
+
+전체 소스 코드:
+
+https://github.com/Hingguripongpong/jangedu-android
+
+Fairy-Stockfish 역시 GPL-3.0-or-later에 따라 배포되며, 사용한 정확한 버전·commit·원본 source 정보는 `android/THIRD_PARTY_NOTICES.md`에서 확인할 수 있습니다.
+
+전체 GPLv3 전문은 저장소 루트의 `LICENSE`에 포함되어 있습니다.
+
+## Android 앱
+
+Android 프로젝트는 `android/` 디렉터리에 있습니다.
+
+주요 기술 스택:
+
+- Kotlin
+- Jetpack Compose
+- Material 3
+- Coroutines / StateFlow / ViewModel
+- Android NDK / CMake / JNI
+- Fairy-Stockfish
+- 완전 오프라인 실행
+
+출시용 application ID:
+
+`com.jangedu.janggiai`
+
+현재 출시 버전:
+
+`1.0.0`
+
+## Legacy / 개발 이력
+
+이 저장소에는 Android 앱 개발 이전에 사용했던 Python 분석 엔진, FastAPI 서버, Web UI, CLI 코드도 함께 남아 있습니다.
+
+아래 내용은 해당 초기 구현과 개발 이력을 설명합니다.
 
 ## 실행
 

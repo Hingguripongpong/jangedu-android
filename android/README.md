@@ -1,4 +1,4 @@
-# Janggi AI — Android (Kotlin · Jetpack Compose · NDK)
+# 장기 교육 — Android (Kotlin · Jetpack Compose · NDK)
 
 온디바이스 Fairy-Stockfish로 **모든 합법수의 예상 승률**을 보여주는 장기 분석/대국 앱.
 서버·WebView·인터넷 권한 없음. 엔진은 앱 프로세스 안의 네이티브 스레드에서 돌아간다.
@@ -118,8 +118,9 @@ cd android
 ./gradlew bundleRelease                                                 # app/build/outputs/bundle/release/app-release.aab
 ```
 
-* 릴리스 서명: `keystore.properties.example` → `keystore.properties`(git 제외). 파일이 없으면 릴리스가 **디버그 키**로
-  서명되어 빌드는 되지만 Play 업로드는 불가(경고 출력). 저장소에는 키가 없다(의도).
+* 릴리스 서명: `keystore.properties.example`을 참고해 `keystore.properties`(git 제외)를 작성하고,
+  별도로 보관한 release keystore를 사용한다. `keystore.properties`가 없으면 release 빌드에 debug signing key를
+  fallback으로 사용하지 않는다. 실제 서명 키와 `keystore.properties`는 저장소에 포함하지 않는다.
 * ABI: `gradle.properties`의 `janggi.abis`(기본 `arm64-v8a,x86_64`). AAB는 ABI 분할 사용. 릴리스 AAB에는 네이티브
   심볼 테이블이 포함된다(`debugSymbolLevel = SYMBOL_TABLE`, APK 크기 영향 없음).
 * 네이티브는 debug/release 모두 `-O3` Release 빌드(느린 디버그 엔진은 의미가 없음).
@@ -141,37 +142,65 @@ cd android
 Linux/macOS에서는 Google의 `check_elf_alignment.sh APK` 스크립트(모든 arm64-v8a .so에 ALIGNED 출력) 또는
 Android Studio의 `Build → Analyze APK…`(미정렬 라이브러리에 경고)로도 확인할 수 있다.
 
-### 이 저장소에서 실행된 것 / 실행되지 않은 것 (정직한 고지)
+### 실제 Android / release 검증 상태
 
-이 코드가 작성된 환경은 Google Maven(dl.google.com)·Maven Central·Gradle 플러그인 포털에 접근할 수 없어
-**Gradle 동기화(AGP 해석), AGP/Compose 실제 컴파일, NDK arm64 빌드, APK/AAB 생성, 에뮬레이터·실기기 실행,
-계측 테스트, 16 KB 정렬 실측은 수행하지 못했다.** 대신 아래를 실제로 실행해 통과했다:
+2026-09-20 기준 Windows + Android Studio 환경과 실제 Samsung SM-A346N 기기에서 다음을 확인했다.
 
-* Kotlin `game`·`engine`·`app`(UI 제외 로직) 소스 전체를 `kotlinc 2.0.21`로 컴파일하고 **진짜 JUnit 4.13.2**
-  (Gradle 8.13 배포판에 포함된 jar)로 단위 테스트 38개 실행(game 20 + engine 9 + app 9) — 모두 통과. 모듈 경계를 Gradle과 같게 나눈 컴파일(`tools/module-check/check.sh`)도 통과.
-* Compose 화면 전체(`app/.../ui/**`, `MainActivity`, `JanggiNavHost`)와 `BoardUiTest`를, 사용하는 Compose/Material3/
-  Navigation/Lifecycle/Activity API의 **시그니처 스텁**(파라미터 이름 그대로)에 대해 kotlinc로 타입체크 — 0 errors.
-  미해결 참조·파라미터 이름 오타·인자 타입/개수·opt-in 누락·`Modifier.weight` 스코프는 걸러졌지만, 스텁이 실제
-  API와 같은 방식으로 틀린 경우는 잡지 못한다.
-* `FairyStockfishInstrumentedTest`(기기용)를 실제 엔진 소스 + JUnit으로 타입체크 — 0 errors.
-* v0.4.1 기능(배치 선택·판 뒤집기·모든 후보·훈수): 실기기(SM-A346N, 2026-09-20)에서 `:app:testDebugUnitTest`·`assembleDebug`·`:engine:connectedDebugAndroidTest` 6/6
-  통과, `:app:connectedDebugAndroidTest` 5/7 → 실패 2건(훈수 미시작 가드 버그, 후보 리스트 스크롤 테스트 방식) 수정. 이 저장소 환경에서는 모듈 분리 컴파일 + 진짜
-  JUnit으로 단위 테스트 **62개**(game 20 + engine 10 + app 32; ViewModel 흐름 테스트는 lifecycle 스텁 런타임으로 8/8 통과) 확인, Compose 화면·UI 테스트 소스
-  전체 스텁 타입체크 0 errors. 수정 후의 Gradle/실기기 재실행은 사용자 측에서 수행.
-* 첫 실제 Gradle 실행(2026-09-19, Windows/Android Studio)에서 `:game:test` 20개·`:engine:testDebugUnitTest` 9개 통과,
-  `:app:compileDebugKotlin`은 `AnalysisController.kt:60`의 **모듈 간 smart cast**(다른 모듈의 nullable public 프로퍼티는
-  smart cast 불가 — 단일 kotlinc 패스에서는 드러나지 않음) 1건으로 실패 → 로컬 변수로 수정, 같은 종류의 오류가 남아
-  있지 않음을 모듈 분리 컴파일로 확인. 두 번째 실행에서 Compose 컴파일·`:app:testDebugUnitTest`·NDK(arm64-v8a, x86_64)
-  빌드·디버그 APK 패키징까지 통과, `:app:compileDebugAndroidTestKotlin`이 `BoardUiTest`의 누락 import 1건(`click`)으로
-  실패 → 수정. 계측 테스트 실행 결과와 릴리스 빌드는 아직 확인 전.
-* 같은 C++ 소스를 g++로 리눅스 `libjanggi_engine.so`로 빌드해 **실제 Fairy-Stockfish**로 `DesktopJniSmokeTest`
-  (18개 검사)와 `DesktopEngineApiTest`(18개 검사) 통과.
-* 공식 Gradle 8.13(SHA-256 검증)으로 `settings.gradle.kts`·버전 카탈로그·루트 빌드 스크립트 파싱과 wrapper
-  스크립트/jar/체크섬 검증까지 확인(플러그인 해석은 네트워크 차단으로 실패 — 예상된 지점).
-* Python 원본 115개 테스트 통과.
+* Android toolchain:
+  * compileSdk / targetSdk 36
+  * AGP 8.13.2
+  * Gradle 8.13
+  * Kotlin 2.0.21
+  * JDK/JVM target 17
+  * NDK 27.1.12297006
+  * CMake 3.22.1
 
-즉 Gradle/AGP 빌드 스크립트의 **실행**과 Compose 코드의 **실제 컴파일**은 Android Studio에서 처음 이루어진다.
-오류가 나면 `../docs/FIRST_ANDROID_BUILD.md` §6의 로그 범위를 보내면 된다.
+* 실제 기기 connected tests:
+  * `:engine:connectedDebugAndroidTest` — **6/6 PASS**
+  * `:app:connectedDebugAndroidTest` — **8/8 PASS**
+  * 총 **14/14 PASS**
+
+* Android 빌드:
+  * `:app:compileDebugKotlin` — PASS
+  * `:app:assembleDebug` — PASS
+  * `:app:assembleRelease` — PASS
+  * `:app:bundleRelease` — PASS
+  * release APK 및 Play 제출용 AAB 생성 확인
+
+* release signing:
+  * 별도 release keystore 사용
+  * release signing config 적용 확인
+  * debug signing fallback 제거
+  * 실제 keystore 및 `keystore.properties`는 Git에 포함하지 않음
+
+* release 실기기 검증:
+  * 앱 설치 및 실행 정상
+  * 사람 vs AI 대국 정상
+  * Fairy-Stockfish JNI/native engine 정상 로드
+  * AI 응수 정상
+  * 분석 모드 및 모든 후보수 표시 정상
+  * 후보 리스트 스크롤 정상
+  * 분석 모드 초/한 독립 마·상 배치 선택 정상
+  * 분석 실행 정상
+  * 앱 이름 및 런처 아이콘 정상
+
+* R8 / resource shrinking:
+  * release에서 `isMinifyEnabled = true`
+  * `isShrinkResources = true`
+  * 해당 설정으로 만든 release APK를 실기기에서 검증 완료
+
+* native ABI packaging:
+  * `arm64-v8a`
+  * `x86_64`
+  * 양 ABI에 `libjanggi_engine.so` 포함 확인
+
+* 16 KB page-size 대응:
+  * release APK 내 모든 native `.so`의 ELF LOAD segment가 `align 2**14`
+  * `libjanggi_engine.so` arm64-v8a / x86_64 모두 확인
+  * `libandroidx.graphics.path.so` arm64-v8a / x86_64 모두 확인
+  * `zipalign -c -P 16 -v 4 app-release.apk` → **Verification successful**
+
+현재 출시 application ID는 `com.jangedu.janggiai`, 표시 버전은 `1.0.0`이다.
 
 ## 3. 개발 PC에서 검증 (Android 없이)
 
@@ -200,7 +229,8 @@ java -Djava.library.path=tools/desktop-jni-test/build -cp api-test.jar:kotlinx-c
 
 ## 4. 패키지 이름 변경
 
-* Play 패키지(applicationId)는 `gradle.properties`의 `janggi.applicationId`만 바꾸면 된다.
+* 현재 Play 패키지(applicationId)는 `com.jangedu.janggiai`이며,
+  `gradle.properties`의 `janggi.applicationId`에서 관리한다.
 * Kotlin 네임스페이스 `com.example.janggiai`는 그대로 두는 것을 권장: JNI 심볼
   `Java_com_example_janggiai_engine_fsf_FairyStockfishNative_*`가 이 패키지에 묶여 있다. 꼭 바꾸려면
   `engine/src/main/cpp/janggi_engine_jni.cpp`의 함수 이름과 `FairyStockfishNative.kt`의 패키지를 함께 바꾸고
@@ -215,9 +245,10 @@ java -Djava.library.path=tools/desktop-jni-test/build -cp api-test.jar:kotlinx-c
 
 ## 6. 알려진 한계 / TODO
 
-* **라이선스 경로 미결정**: GPL 엔진을 인프로세스 링크하므로 앱 전체 공개(경로 A) 또는 법률 검토(경로 B)를 출시 전에
-  결정해야 한다 — `../docs/LICENSING.md`. 정보 화면의 앱 자체 라이선스 문구와 저장소 `LICENSE`는 결정 후 추가.
-* 자리표시자: `applicationId`(`com.example.janggiai`), 앱 이름("Janggi AI"), 런처 아이콘. 서명 키는 예시 설정만 있음.
+* 라이선스: 앱 전체 소스는 GPL-3.0-or-later 조건으로 공개한다. 전체 corresponding source는
+  https://github.com/Hingguripongpong/jangedu-android 에서 제공하며, 저장소 루트 `LICENSE`에 GPLv3 전문이 포함되어 있다.
+* 출시 식별자: application ID는 `com.jangedu.janggiai`, 앱 이름은 `장기 교육`, 출시용 런처 아이콘 적용 완료.
+  실제 release keystore와 `keystore.properties`는 보안상 저장소에 포함하지 않는다.
 * 개인정보처리방침 초안은 `../docs/PRIVACY_POLICY.md`(공개 URL로 게시 필요; 앱 내 표시는 데이터 미수집 앱에는 필수가
   아니라 추가하지 않았다 — 아동 대상 앱으로 선언하면 필수).
 

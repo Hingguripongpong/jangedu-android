@@ -1,18 +1,19 @@
-# Play Store 출시 절차 — Janggi AI (Android)
+# Play Store 출시 절차 — 장기 교육 (Android)
 
 `android/`의 앱을 Google Play에 올리기 위한 체크리스트. 정책 수치는 2026-09 기준 Play Console 도움말로
 확인한 값이며, Console에 표시되는 요구사항이 이 문서와 다르면 **Console이 우선**이다.
 
-> **먼저 읽을 것**: `docs/LICENSING.md`. 이 앱은 GPL 엔진을 프로세스 안에 링크하므로 앱 전체를 GPL 호환으로
-> 공개하는 경로(A) 또는 출시 전 법률 검토 경로(B)를 먼저 결정해야 한다. 결정 전에는 프로덕션 출시를 하지 않는다.
+> **라이선스 경로 확정**: 경로 A를 선택했다. 앱 전체 소스를 GPL-3.0-or-later 조건으로 공개하며,
+> corresponding source는 https://github.com/Hingguripongpong/jangedu-android 에서 제공한다.
+> 저장소 루트의 `LICENSE`에 GPLv3 전문이 포함되어 있다.
 
 ## 0. 코드 측 준비
 
-1. `android/gradle.properties`
-   * `janggi.applicationId` — 최종 패키지 이름(현재 `com.example.janggiai`는 **자리표시자**). 한 번 올리면 변경 불가.
-   * `janggi.versionCode` — 업로드마다 정수 증가. `janggi.versionName` — 표시용 버전.
-2. `android/app/src/main/res/values/strings.xml`의 `app_name`(현재 "Janggi AI"는 자리표시자) 확정.
-3. 런처 아이콘 교체(`res/drawable/ic_launcher_foreground.xml`은 자리표시자).
+1. applicationId: `com.jangedu.janggiai`
+   * `janggi.versionCode=2`
+   * `janggi.versionName=1.0.0`
+2. 앱 이름: `장기 교육`
+3. 출시용 런처 아이콘 적용 완료.
 4. 타깃 API: `app`은 `compileSdk 36 / targetSdk 36`. Play는 **2026-08-31부터 신규 앱·업데이트에 API 36 이상**을
    요구한다(연장 신청 시 2026-11-01까지). 기존 앱은 API 35 이상이어야 신규 사용자에게 노출된다.
 5. 16 KB 페이지 크기: **2025-11-01부터** Android 15+ 기기를 대상으로 하는 신규 앱·업데이트는 16 KB 페이지 크기를
@@ -24,14 +25,16 @@
 
 ```bat
 cd android
-keytool -genkeypair -v -keystore release.jks -alias janggi -keyalg RSA -keysize 4096 -validity 10000
+keytool -genkeypair -v -keystore release.jks -alias jangedu -keyalg RSA -keysize 4096 -validity 10000
 copy keystore.properties.example keystore.properties   :: 값 입력 (storeFile=release.jks ...)
 ```
 
 * `release.jks`, `keystore.properties`는 `.gitignore`에 있다. **커밋 금지**, 안전한 곳에 백업.
 * Play App Signing(기본)에서 이 키는 *업로드 키*가 되고 Google이 앱 서명 키를 보관한다. 업로드 키를 잃으면
   Console에서 재설정을 요청할 수 있다.
-* 현재 저장소에는 예시 설정만 있고 키는 생성되어 있지 않다(의도된 상태).
+* release keystore와 `keystore.properties`는 로컬에서 생성·설정 완료했다.
+  두 파일은 Git에서 제외되어 있으며 공개 저장소에는 포함하지 않는다.
+* `:app:signingReport`에서 release variant가 `release.jks`, alias `jangedu`를 사용하는 것을 확인했다.
 
 ## 2. 릴리스 빌드
 
@@ -40,7 +43,8 @@ gradlew.bat bundleRelease          :: app\build\outputs\bundle\release\app-relea
 gradlew.bat assembleRelease        :: app\build\outputs\apk\release\app-release.apk     (사이드로드 테스트용)
 ```
 
-로그에 `WARNING: keystore.properties not found` 가 있으면 디버그 키 서명이므로 업로드 불가. AAB는
+`keystore.properties`가 없으면 release 빌드는 debug signing key로 fallback하지 않는다.
+Play 업로드용 산출물은 반드시 별도의 release keystore로 서명한 상태에서 생성한다. AAB는
 arm64-v8a + x86_64를 담고 Play가 기기별로 분할 배포한다. R8 축소가 켜져 있고 JNI 진입점은
 `proguard-rules.pro`/`engine/consumer-rules.pro`의 keep 규칙으로 보호된다. 릴리스에는 네이티브 심볼 테이블이
 AAB에 포함되어(`debugSymbolLevel = SYMBOL_TABLE`) Console이 네이티브 크래시를 해독할 수 있다.
@@ -50,6 +54,20 @@ AAB에 포함되어(`debugSymbolLevel = SYMBOL_TABLE`) Console이 네이티브 �
 * 대국 → 초보/최강에서 AI가 두는지(Skill Level·MultiPV=1 경로).
 * 정보 → GPL 전문·제3자 고지가 열리는지(에셋 포함).
 * 화면 회전 후 국면·수순 유지.
+
+현재 검증 상태:
+
+* `:engine:connectedDebugAndroidTest` — 6/6 PASS
+* `:app:connectedDebugAndroidTest` — 8/8 PASS
+* 총 14/14 PASS
+* `assembleRelease` — PASS
+* `bundleRelease` — PASS
+* release APK 실기기 설치·실행 — PASS
+* 사람 vs AI / JNI engine / 분석 모드 / 후보수 표시 — PASS
+* 분석 모드 초·한 초기 배치 선택 — PASS
+* R8 minify + resource shrinking 상태에서 release 실기기 검증 — PASS
+* 16 KB ELF LOAD alignment — 모든 native `.so` `2**14`
+* `zipalign -c -P 16 -v 4` — `Verification successful`
 
 ## 3. Play Console
 
@@ -89,15 +107,20 @@ AAB에 포함되어(`debugSymbolLevel = SYMBOL_TABLE`) Console이 네이티브 �
 
 ## 4. GPL(Fairy-Stockfish) 고지 — 스토어 문구와 소스 제공
 
-상세는 `docs/LICENSING.md`. 요약:
+이 앱은 경로 A를 사용한다.
 
-* 경로 A(앱 전체 GPL 공개)를 택했을 때의 스토어 설명 문구(예):
-  > 이 앱은 GNU GPL v3(또는 이후 버전)로 배포되는 자유 소프트웨어이며, 장기 엔진 Fairy-Stockfish
-  > (https://github.com/fairy-stockfish/Fairy-Stockfish, GPL-3.0-or-later)를 수정 없이 포함합니다.
-  > 앱 전체의 소스코드는 <저장소 URL> 에서 같은 라이선스로 제공됩니다. 이 프로그램은 어떠한 보증도 없이 제공됩니다.
-* 경로 B(비공개 유지)는 법률 검토 결과에 따라 문구와 배포 가능 여부가 달라진다 — 검토 전 출시 금지.
-* 어느 경로든: 앱 정보 화면의 엔진 고지·GPL 전문·`THIRD_PARTY_NOTICES.md` 유지, 엔진 버전·커밋·SHA-256 표시,
-  릴리스마다 대응 소스의 태그를 남긴다.
+* 앱 전체 소스는 GPL-3.0-or-later 조건으로 공개한다.
+* 전체 corresponding source:
+  https://github.com/Hingguripongpong/jangedu-android
+* Fairy-Stockfish 원본과 정확한 버전·commit·SHA-256은 `android/THIRD_PARTY_NOTICES.md`에 기록한다.
+* 앱 정보 화면에서 GPL 전문, 제3자 고지, 전체 소스 저장소 링크를 제공한다.
+* 릴리스마다 배포 바이너리와 대응하는 소스 revision/tag를 남긴다.
+
+스토어 설명 문구 예:
+
+> 장기 교육은 GNU GPL v3 또는 이후 버전으로 배포되는 자유 소프트웨어입니다.
+> 장기 엔진으로 Fairy-Stockfish(GPL-3.0-or-later)를 포함하며,
+> 앱 전체 소스 코드는 https://github.com/Hingguripongpong/jangedu-android 에서 제공합니다.
 
 ## 5. 릴리스 후 점검
 
@@ -110,10 +133,17 @@ AAB에 포함되어(`debugSymbolLevel = SYMBOL_TABLE`) Console이 네이티브 �
 
 ## 6. 체크리스트
 
-- [ ] `docs/LICENSING.md`의 경로 결정(법률 검토 포함 여부)
-- [ ] applicationId / versionCode / versionName 확정, 앱 이름·아이콘 교체
-- [ ] 업로드 키 생성·백업, `keystore.properties` 작성
-- [ ] `FIRST_ANDROID_BUILD.md` 3-1 ~ 3-5 성공, 16 KB 정렬 확인, 릴리스 APK 실기기 확인
-- [ ] 개인정보처리방침 URL 게시(PDF 아님), 데이터 보안 "수집 없음", 콘텐츠 등급 완료
-- [ ] 스토어 설명에 라이선스 문구 + 소스 URL, 저장소 공개(경로 A)
-- [ ] 내부 테스트 → 비공개 테스트(해당 계정: 12명·14일 연속) → 프로덕션 접근 신청 → 프로덕션
+- [x] GPL 경로 A 결정 및 전체 소스 공개 저장소 생성
+- [x] applicationId / versionCode / versionName 확정
+- [x] 앱 이름·런처 아이콘 교체
+- [x] 업로드 키 생성·release signing 확인
+- [x] connected tests 14/14 PASS
+- [x] release APK / AAB 생성
+- [x] release APK 실기기 검증
+- [x] 16 KB ELF / ZIP alignment 검증
+- [ ] 개인정보처리방침 공개 URL 게시
+- [ ] Play Console Data safety / 콘텐츠 등급 / 타깃 연령 작성
+- [ ] 스토어 설명·스크린샷·피처 그래픽 준비
+- [ ] AAB 내부 테스트 업로드
+- [ ] 비공개 테스트 요건이 계정에 적용되는 경우 완료
+- [ ] 프로덕션 출시

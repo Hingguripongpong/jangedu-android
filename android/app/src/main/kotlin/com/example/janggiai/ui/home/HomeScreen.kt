@@ -27,7 +27,7 @@ fun HomeScreen(onPlay: () -> Unit, onAnalyze: () -> Unit, onRecords: () -> Unit,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("Janggi AI", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+        Text("장기 교육", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Text("오프라인 장기 분석 엔진", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(40.dp))
         Card(Modifier.fillMaxWidth()) {
