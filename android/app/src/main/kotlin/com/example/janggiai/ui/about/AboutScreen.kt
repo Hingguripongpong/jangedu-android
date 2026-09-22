@@ -69,6 +69,15 @@ fun AboutScreen(onBack: () -> Unit) {
             ) {
                 Text("전체 소스 코드 보기")
             }
+            TextButton(
+                onClick = {
+                    uriHandler.openUri(
+                        "https://hingguripongpong.github.io/jangedu-android/PRIVACY_POLICY.html"
+                    )
+                }
+            ) {
+                Text("개인정보 처리방침")
+            }
             Spacer(Modifier.height(12.dp))
             Text("이 앱은 인터넷 권한이 없으며 계정·광고·분석 도구를 사용하지 않습니다. 모든 계산은 기기 안에서 이루어지고, 기보는 앱 내부 저장소에만 저장됩니다.", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(16.dp))
